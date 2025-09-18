@@ -6,7 +6,7 @@ A monorepo containing a ContainerManager service that creates and manages Docker
 
 - **Backend** (`apps/backend`): NestJS service that manages Docker containers
 - **Frontend** (`apps/frontend`): Next.js AgentApp client with Material-UI and Tailwind CSS
-- **Monorepo**: Turbo-powered monorepo with shared configurations
+- **Monorepo**: npm workspaces with shared configurations
 
 ## Features
 
@@ -100,7 +100,6 @@ npm run clean
 │       │   └── types/              # TypeScript types
 │       └── package.json
 ├── packages/             # Shared packages (if needed)
-├── turbo.json           # Turbo configuration
 └── package.json         # Root package.json
 ```
 
@@ -156,7 +155,7 @@ ws.sendTerminalInput('ls -la')
 
 - **Backend**: NestJS, TypeScript, Docker API, Socket.IO
 - **Frontend**: Next.js 14, React 18, Material-UI, Tailwind CSS, Socket.IO Client
-- **Build System**: Turbo, TypeScript, ESLint
+- **Build System**: npm workspaces, TypeScript, ESLint
 - **Container Runtime**: Docker
 
 ## License

@@ -6,7 +6,8 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start"
+    "start": "next start",
+    "clean": "rimraf .next out"
   },
   "dependencies": {
     "next": "14.0.0",
@@ -28,6 +29,7 @@
     "autoprefixer": "^10.0.1",
     "postcss": "^8",
     "eslint": "^8",
-    "eslint-config-next": "14.0.0"
+    "eslint-config-next": "14.0.0",
+    "rimraf": "^5.0.0"
   }
 }
