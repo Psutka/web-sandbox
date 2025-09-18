@@ -23,6 +23,7 @@ export function Terminal({ containerId }: TerminalProps) {
   const [lines, setLines] = useState<TerminalLine[]>([])
   const [input, setInput] = useState('')
   const [ws, setWs] = useState<ContainerWebSocket | null>(null)
+  const [currentPath, setCurrentPath] = useState('/workspace')
   const terminalRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -33,6 +34,13 @@ export function Terminal({ containerId }: TerminalProps) {
       socket.on('joined-container', (data) => {
         console.log('Terminal: Joined container event received:', data)
         addLine('output', `Connected to container ${data.containerId}`)
+
+        // Get current working directory
+        websocket.sendProcessOperation({
+          type: 'spawn',
+          command: 'pwd',
+          args: []
+        })
       })
 
       socket.on('terminal-output', (data) => {
@@ -43,6 +51,14 @@ export function Terminal({ containerId }: TerminalProps) {
       socket.on('process-result', (data) => {
         console.log('Terminal: Process result received:', data)
         addLine('output', data.result.output || `Process started with PID: ${data.result.pid}`)
+
+        // Update current path if pwd was executed
+        if (data.operation === 'spawn' && data.result.output && data.result.output.startsWith('/')) {
+          const trimmedOutput = data.result.output.trim()
+          if (trimmedOutput.split('\n').length === 1 && trimmedOutput.includes('/')) {
+            setCurrentPath(trimmedOutput)
+          }
+        }
       })
 
       socket.on('error', (error) => {
@@ -86,7 +102,7 @@ export function Terminal({ containerId }: TerminalProps) {
     if (e.key === 'Enter' && input.trim()) {
       const command = input.trim()
       console.log('Terminal: Command entered:', command)
-      addLine('input', `$ ${command}`)
+      addLine('input', `${currentPath}$ ${command}`)
 
       // Parse command
       const parts = command.split(' ')
@@ -95,15 +111,16 @@ export function Terminal({ containerId }: TerminalProps) {
 
       if (ws) {
         console.log('Terminal: WebSocket connected, processing command:', cmd, 'with args:', args)
-        if (['ls', 'pwd', 'cat', 'echo', 'mkdir', 'rm', 'touch'].includes(cmd)) {
+        if (['ls', 'pwd', 'cat', 'echo', 'mkdir', 'rm', 'touch', 'cd'].includes(cmd)) {
           // File system commands - enhance ls to show file types
           let commandToSend = cmd
           let argsToSend = args
 
           if (cmd === 'ls' && args.length === 0) {
-            // Use ls -la for better directory/file distinction
+            // Add -la flag to show detailed file info including directories
             argsToSend = ['-la']
           }
+
 
           console.log('Terminal: Sending process operation for:', commandToSend, 'with args:', argsToSend)
           ws.sendProcessOperation({
@@ -111,6 +128,17 @@ export function Terminal({ containerId }: TerminalProps) {
             command: commandToSend,
             args: argsToSend
           })
+
+          // After cd command, get the new working directory
+          if (cmd === 'cd') {
+            setTimeout(() => {
+              ws.sendProcessOperation({
+                type: 'spawn',
+                command: 'pwd',
+                args: []
+              })
+            }, 100) // Small delay to ensure cd completes first
+          }
         } else {
           // Send as terminal input
           console.log('Terminal: Sending terminal input for:', command)
@@ -155,7 +183,7 @@ export function Terminal({ containerId }: TerminalProps) {
           backgroundColor: '#0a0a0a',
           color: '#ffffff',
           fontFamily: 'monospace',
-          fontSize: '14px',
+          fontSize: '10px',
           height: '450px',
           overflow: 'auto',
           p: 1,
@@ -180,7 +208,7 @@ export function Terminal({ containerId }: TerminalProps) {
       <TextField
         fullWidth
         size="small"
-        placeholder="Enter command..."
+        placeholder={`${currentPath}$ `}
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyPress={handleKeyPress}

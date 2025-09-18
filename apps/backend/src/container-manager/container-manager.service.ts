@@ -130,7 +130,7 @@ export class ContainerManagerService {
       const container = this.docker.getContainer(dockerContainerId);
       const output = await this.execInContainer(container, ['sh', '-c', command]);
 
-      return { output: output.trim() };
+      return { output: output.replace(/^\s+|\s+$/g, '').replace(/^[\x00-\x08\x0E-\x1F\x7F]*/g, '') };
     } catch (error) {
       this.logger.error(`Failed to execute command in container ${containerId}:`, error);
       return { output: '', error: error.message };
@@ -163,7 +163,34 @@ export class ContainerManagerService {
     return new Promise((resolve, reject) => {
       let output = '';
       stream.on('data', (chunk) => {
-        output += chunk.toString();
+        // Docker exec streams are multiplexed - handle properly
+        let offset = 0;
+        while (offset < chunk.length) {
+          if (chunk.length - offset < 8) {
+            // Not enough data for header, treat as raw data
+            output += chunk.slice(offset).toString();
+            break;
+          }
+
+          // Read the 8-byte header
+          const header = chunk.slice(offset, offset + 8);
+          const streamType = header[0]; // 0=stdin, 1=stdout, 2=stderr
+          const size = header.readUInt32BE(4);
+
+          if (size === 0 || offset + 8 + size > chunk.length) {
+            // Invalid size or not enough data, treat remaining as raw
+            output += chunk.slice(offset).toString();
+            break;
+          }
+
+          // Extract the actual data
+          const data = chunk.slice(offset + 8, offset + 8 + size);
+          if (streamType === 1 || streamType === 2) { // stdout or stderr
+            output += data.toString();
+          }
+
+          offset += 8 + size;
+        }
       });
       stream.on('end', () => resolve(output));
       stream.on('error', reject);
