@@ -17,6 +17,7 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
   PlayArrow as PlayIcon,
+  Launch as LaunchIcon,
 } from '@mui/icons-material'
 import { containerAPI } from '@/lib/api'
 import { ContainerInfo } from '@/types/container.types'
@@ -190,26 +191,71 @@ server.listen(3000, () => {
               }
               secondary={
                 <>
-                  {container.port && `Port: ${container.port}`}
+                  {container.port && (
+                    <Box component="div" sx={{ fontSize: '0.75rem' }}>
+                      Port: {container.port}
+                    </Box>
+                  )}
                   {container.websocketUrl && (
                     <Box component="div" sx={{ fontSize: '0.75rem', mt: 0.5 }}>
                       WS: {container.websocketUrl}
+                    </Box>
+                  )}
+                  {container.previewUrl && (
+                    <Box component="div" sx={{ fontSize: '0.75rem', mt: 0.5, display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <span>Preview:</span>
+                      <Box
+                        component="a"
+                        href={container.previewUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        sx={{
+                          color: 'primary.main',
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                          '&:hover': {
+                            textDecoration: 'underline',
+                          },
+                        }}
+                      >
+                        {container.previewUrl}
+                        <LaunchIcon sx={{ fontSize: '0.75rem' }} />
+                      </Box>
                     </Box>
                   )}
                 </>
               }
             />
             <ListItemSecondaryAction>
-              <IconButton
-                size="small"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  deleteContainer(container.id)
-                }}
-                disabled={loading}
-              >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
+              <Box display="flex" gap={0.5}>
+                {container.previewUrl && (
+                  <IconButton
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.open(container.previewUrl, '_blank', 'noopener,noreferrer')
+                    }}
+                    disabled={loading}
+                    title="Open Preview"
+                  >
+                    <LaunchIcon fontSize="small" />
+                  </IconButton>
+                )}
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteContainer(container.id)
+                  }}
+                  disabled={loading}
+                  title="Delete Container"
+                >
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Box>
             </ListItemSecondaryAction>
           </ListItem>
         ))}

@@ -151,45 +151,47 @@ export function FileExplorer({ containerId }: FileExplorerProps) {
         </Alert>
       )}
 
-      <List dense>
-        {currentPath !== '/' && (
-          <ListItem button onClick={navigateUp}>
-            <ListItemIcon>
-              <FolderIcon />
-            </ListItemIcon>
-            <ListItemText primary=".." />
-          </ListItem>
-        )}
+      <Box sx={{ maxHeight: '480px', overflow: 'auto' }}>
+        <List dense>
+          {currentPath !== '/' && (
+            <ListItem button onClick={navigateUp}>
+              <ListItemIcon>
+                <FolderIcon />
+              </ListItemIcon>
+              <ListItemText primary=".." />
+            </ListItem>
+          )}
 
-        {files.map((file) => (
-          <ListItem
-            key={file.name}
-            button
-            onClick={() => handleFileClick(file)}
-          >
-            <ListItemIcon>
-              {file.type === 'directory' ? <FolderIcon /> : <FileIcon />}
-            </ListItemIcon>
-            <ListItemText 
-              primary={file.name}
-              sx={{ 
-                '& .MuiListItemText-primary': {
-                  fontFamily: file.type === 'file' ? 'monospace' : 'inherit'
-                }
-              }}
-            />
-          </ListItem>
-        ))}
+          {files.map((file) => (
+            <ListItem
+              key={file.name}
+              button
+              onClick={() => handleFileClick(file)}
+            >
+              <ListItemIcon>
+                {file.type === 'directory' ? <FolderIcon /> : <FileIcon />}
+              </ListItemIcon>
+              <ListItemText
+                primary={file.name}
+                sx={{
+                  '& .MuiListItemText-primary': {
+                    fontFamily: file.type === 'file' ? 'monospace' : 'inherit'
+                  }
+                }}
+              />
+            </ListItem>
+          ))}
 
-        {files.length === 0 && !loading && (
-          <ListItem>
-            <ListItemText
-              primary="No files"
-              secondary="This directory is empty"
-            />
-          </ListItem>
-        )}
-      </List>
+          {files.length === 0 && !loading && (
+            <ListItem>
+              <ListItemText
+                primary="No files"
+                secondary="This directory is empty"
+              />
+            </ListItem>
+          )}
+        </List>
+      </Box>
 
       <Dialog 
         open={createDialog.open} 

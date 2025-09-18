@@ -63,8 +63,15 @@ export class ContainerManagerService {
       containerInfo.status = 'running';
       containerInfo.websocketUrl = `ws://localhost:${port}`;
 
+      // Get the actual mapped port for port 3000 (preview port)
+      const previewPort = await this.getContainerPreviewPort(containerId);
+      if (previewPort) {
+        containerInfo.previewPort = previewPort;
+        containerInfo.previewUrl = `http://localhost:${previewPort}`;
+      }
+
       this.containers.set(containerId, containerInfo);
-      this.logger.log(`Container ${containerId} created and started on port ${port}`);
+      this.logger.log(`Container ${containerId} created and started on port ${port}${previewPort ? `, preview on port ${previewPort}` : ''}`);
 
       return containerInfo;
     } catch (error) {
@@ -111,6 +118,32 @@ export class ContainerManagerService {
     return this.containers.get(containerId);
   }
 
+  async getContainerPreviewPort(containerId: string): Promise<number | null> {
+    try {
+      const dockerContainerId = this.dockerContainers.get(containerId);
+      if (!dockerContainerId) {
+        return null;
+      }
+
+      const container = this.docker.getContainer(dockerContainerId);
+      const containerInfo = await container.inspect();
+
+      // Look for port 3000 mapping
+      const portBindings = containerInfo.NetworkSettings?.Ports;
+      const port3000Binding = portBindings?.['3000/tcp'];
+
+      if (port3000Binding && port3000Binding.length > 0) {
+        const hostPort = port3000Binding[0].HostPort;
+        return hostPort ? parseInt(hostPort, 10) : null;
+      }
+
+      return null;
+    } catch (error) {
+      this.logger.error(`Failed to get preview port for container ${containerId}:`, error);
+      return null;
+    }
+  }
+
   getAllContainers(): ContainerInfo[] {
     return Array.from(this.containers.values());
   }
@@ -151,6 +184,54 @@ export class ContainerManagerService {
     }
   }
 
+  async uploadFileViaWebSocket(
+    containerId: string,
+    filename: string,
+    targetPath: string,
+    content: string,
+    encoding: 'utf8' | 'base64' = 'utf8'
+  ): Promise<{ success: boolean; path: string }> {
+    const container = this.getContainer(containerId);
+    if (!container) {
+      throw new Error('Container not found');
+    }
+
+    try {
+      // Ensure target directory exists
+      const directory = targetPath.substring(0, targetPath.lastIndexOf('/'));
+      if (directory) {
+        await this.executeCommand(containerId, `mkdir -p ${directory}`);
+      }
+
+      let writeCommand: string;
+
+      if (encoding === 'base64') {
+        // For binary files, decode base64 and write to file
+        writeCommand = `echo '${content}' | base64 -d > ${targetPath}`;
+      } else {
+        // For text files, escape single quotes and write
+        const escapedContent = content.replace(/'/g, "'\\''" );
+        writeCommand = `echo '${escapedContent}' > ${targetPath}`;
+      }
+
+      const result = await this.executeCommand(containerId, writeCommand);
+
+      if (result.error) {
+        throw new Error(`File upload failed: ${result.error}`);
+      }
+
+      this.logger.log(`File uploaded successfully: ${filename} -> ${targetPath}`);
+
+      return {
+        success: true,
+        path: targetPath
+      };
+    } catch (error) {
+      this.logger.error(`Failed to upload file ${filename}:`, error);
+      throw error;
+    }
+  }
+
   private async execInContainer(container: Docker.Container, cmd: string[]): Promise<string> {
     const exec = await container.exec({
       Cmd: cmd,
@@ -159,7 +240,7 @@ export class ContainerManagerService {
     });
 
     const stream = await exec.start({ Detach: false });
-    
+
     return new Promise((resolve, reject) => {
       let output = '';
       stream.on('data', (chunk) => {

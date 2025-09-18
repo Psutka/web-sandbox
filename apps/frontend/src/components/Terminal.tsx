@@ -46,6 +46,12 @@ export function Terminal({ containerId }: TerminalProps) {
       socket.on('terminal-output', (data) => {
         console.log('Terminal: Terminal output received:', data)
         addLine('output', data.output)
+
+        // Update current path if this looks like a cd command result (output is a path)
+        const output = data.output.trim()
+        if (output.startsWith('/') && output.split('\n').length === 1) {
+          setCurrentPath(output)
+        }
       })
 
       socket.on('process-result', (data) => {
@@ -111,7 +117,11 @@ export function Terminal({ containerId }: TerminalProps) {
 
       if (ws) {
         console.log('Terminal: WebSocket connected, processing command:', cmd, 'with args:', args)
-        if (['ls', 'pwd', 'cat', 'echo', 'mkdir', 'rm', 'touch', 'cd'].includes(cmd)) {
+        if (cmd === 'cd') {
+          // Send cd commands as terminal input to use the special cd handler
+          console.log('Terminal: Sending cd command as terminal input:', command)
+          ws.sendTerminalInput(command)
+        } else if (['ls', 'pwd', 'cat', 'echo', 'mkdir', 'rm', 'touch'].includes(cmd)) {
           // File system commands - enhance ls to show file types
           let commandToSend = cmd
           let argsToSend = args
@@ -121,24 +131,12 @@ export function Terminal({ containerId }: TerminalProps) {
             argsToSend = ['-la']
           }
 
-
           console.log('Terminal: Sending process operation for:', commandToSend, 'with args:', argsToSend)
           ws.sendProcessOperation({
             type: 'spawn',
             command: commandToSend,
             args: argsToSend
           })
-
-          // After cd command, get the new working directory
-          if (cmd === 'cd') {
-            setTimeout(() => {
-              ws.sendProcessOperation({
-                type: 'spawn',
-                command: 'pwd',
-                args: []
-              })
-            }, 100) // Small delay to ensure cd completes first
-          }
         } else {
           // Send as terminal input
           console.log('Terminal: Sending terminal input for:', command)

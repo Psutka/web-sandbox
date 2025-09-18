@@ -75,4 +75,21 @@ export const webContainerAPI: WebContainerAPI = {
     const response = await api.get(`/webcontainer/${containerId}/url`)
     return response.data
   },
+
+  async upload(
+    containerId: string,
+    filename: string,
+    targetPath: string,
+    content: string,
+    encoding?: 'utf8' | 'base64'
+  ) {
+    const response = await api.post('/webcontainer/upload', {
+      containerId,
+      filename,
+      targetPath,
+      content,
+      encoding
+    })
+    return response.data
+  },
 }

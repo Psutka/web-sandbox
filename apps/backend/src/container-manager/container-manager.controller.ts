@@ -65,4 +65,25 @@ export class ContainerManagerController {
   getAllContainers(): ContainerInfo[] {
     return this.containerService.getAllContainers();
   }
+
+  @Get(':id/url')
+  @ApiOperation({ summary: 'Get the preview URL for the container' })
+  @ApiResponse({ status: 200, description: 'Preview URL retrieved' })
+  async getContainerUrl(@Param('id') id: string) {
+    const container = this.containerService.getContainer(id);
+    if (!container) {
+      throw new HttpException('Container not found', HttpStatus.NOT_FOUND);
+    }
+
+    const previewPort = await this.containerService.getContainerPreviewPort(id);
+    if (!previewPort) {
+      throw new HttpException('Container preview port not available', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    return {
+      url: `http://localhost:${previewPort}`,
+      containerId: id,
+      port: previewPort,
+    };
+  }
 }

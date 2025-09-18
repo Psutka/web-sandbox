@@ -2,7 +2,9 @@ export interface ContainerInfo {
   id: string
   status: 'creating' | 'running' | 'stopped' | 'error'
   port?: number
+  previewPort?: number
   websocketUrl?: string
+  previewUrl?: string
   createdAt: Date
 }
 
@@ -25,5 +27,12 @@ export interface WebContainerAPI {
   mkdir(containerId: string, path: string): Promise<any>
   rm(containerId: string, path: string): Promise<any>
   spawn(containerId: string, command: string, args?: string[]): Promise<any>
-  getUrl(containerId: string): Promise<{ url: string }>
+  getUrl(containerId: string): Promise<{ url: string; containerId: string; port: number }>
+  upload(
+    containerId: string,
+    filename: string,
+    targetPath: string,
+    content: string,
+    encoding?: 'utf8' | 'base64'
+  ): Promise<{ success: boolean; filename: string; targetPath: string; message: string }>
 }

@@ -1,0 +1,1057 @@
+openapi: 3.0.3
+info:
+  title: Container Manager API
+  description: |
+    A Container Manager system that provides WebContainer-compatible APIs for Docker container management.
+    The system creates ephemeral Docker containers that can be controlled via REST APIs and WebSocket connections,
+    allowing seamless migration from WebContainers to Docker-based containers.
+
+    ## Architecture
+    - **Backend**: NestJS service managing Docker containers via Dockerode
+    - **WebSocket**: Real-time container interactions with persistent directory state
+    - **Dual API**: Direct container management + WebContainer-compatible endpoints
+  version: "1.0.0"
+  contact:
+    name: Container Manager API
+    url: http://localhost:3001/api
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:3001
+    description: Development server
+tags:
+  - name: containers
+    description: Direct container management operations
+  - name: webcontainer
+    description: WebContainer-compatible API endpoints for seamless migration
+paths:
+  # Container Management Endpoints
+  /containers:
+    get:
+      tags:
+        - containers
+      summary: Get all containers
+      description: Retrieve a list of all containers in the system
+      operationId: getAllContainers
+      responses:
+        '200':
+          description: All containers retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContainerInfo'
+    post:
+      tags:
+        - containers
+      summary: Create a new container
+      description: Create a new Docker container with optional initial files
+      operationId: createContainer
+      requestBody:
+        description: Container creation options
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                files:
+                  $ref: '#/components/schemas/FileSystemTree'
+              example:
+                files:
+                  "package.json":
+                    file:
+                      contents: |
+                        {
+                          "name": "my-project",
+                          "version": "1.0.0"
+                        }
+                  "src":
+                    directory:
+                      "index.js":
+                        file:
+                          contents: "console.log('Hello World');"
+      responses:
+        '201':
+          description: Container created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerInfo'
+        '500':
+          description: Failed to create container
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /containers/{id}:
+    get:
+      tags:
+        - containers
+      summary: Get container information
+      description: Retrieve information about a specific container
+      operationId: getContainer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Container information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContainerInfo'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags:
+        - containers
+      summary: Delete a container
+      description: Stop and remove a Docker container
+      operationId: deleteContainer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Container deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Container deleted successfully"
+        '500':
+          description: Failed to delete container
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /containers/{id}/url:
+    get:
+      tags:
+        - containers
+      summary: Get the preview URL for the container
+      description: Retrieve the preview URL and port information for a container
+      operationId: getContainerUrl
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Preview URL retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewUrlResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Container preview port not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # WebContainer-Compatible Endpoints
+  /webcontainer/boot:
+    post:
+      tags:
+        - webcontainer
+      summary: Boot a new WebContainer instance
+      description: Create and boot a new WebContainer-compatible instance with optional initial files
+      operationId: bootWebContainer
+      requestBody:
+        description: Boot options with initial files
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                files:
+                  $ref: '#/components/schemas/FileSystemTree'
+              example:
+                files:
+                  "package.json":
+                    file:
+                      contents: |
+                        {
+                          "name": "webcontainer-project",
+                          "version": "1.0.0",
+                          "scripts": {
+                            "dev": "node index.js"
+                          }
+                        }
+      responses:
+        '201':
+          description: WebContainer booted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebContainerBootResponse'
+        '500':
+          description: Failed to boot WebContainer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webcontainer/{containerId}/fs/writeFile:
+    post:
+      tags:
+        - webcontainer
+      summary: Write a file to the WebContainer filesystem
+      description: Create or overwrite a file in the container's filesystem
+      operationId: writeFile
+      parameters:
+        - name: containerId
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WriteFileRequest'
+      responses:
+        '200':
+          description: File written successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileOperationResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to write file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webcontainer/{containerId}/fs/readFile/{path}:
+    get:
+      tags:
+        - webcontainer
+      summary: Read a file from the WebContainer filesystem
+      description: Read the contents of a file from the container's filesystem
+      operationId: readFile
+      parameters:
+        - name: containerId
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+        - name: path
+          in: path
+          required: true
+          description: File path (supports nested paths with *)
+          schema:
+            type: string
+          example: "src/index.js"
+      responses:
+        '200':
+          description: File read successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadFileResponse'
+        '404':
+          description: Container or file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to read file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webcontainer/{containerId}/fs/readdir/{path}:
+    get:
+      tags:
+        - webcontainer
+      summary: Read directory contents from WebContainer filesystem
+      description: List files and directories in the specified path
+      operationId: readDirectory
+      parameters:
+        - name: containerId
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+        - name: path
+          in: path
+          required: true
+          description: Directory path (supports nested paths with *)
+          schema:
+            type: string
+          example: "src"
+      responses:
+        '200':
+          description: Directory contents retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadDirectoryResponse'
+        '404':
+          description: Container or directory not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to read directory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webcontainer/{containerId}/fs/mkdir:
+    post:
+      tags:
+        - webcontainer
+      summary: Create a directory in WebContainer filesystem
+      description: Create a new directory in the container's filesystem
+      operationId: createDirectory
+      parameters:
+        - name: containerId
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDirectoryRequest'
+      responses:
+        '200':
+          description: Directory created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileOperationResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to create directory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webcontainer/{containerId}/fs/rm:
+    delete:
+      tags:
+        - webcontainer
+      summary: Remove a file or directory from WebContainer filesystem
+      description: Delete a file or directory (recursively) from the container's filesystem
+      operationId: removeFileOrDirectory
+      parameters:
+        - name: containerId
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveRequest'
+      responses:
+        '200':
+          description: File/directory removed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileOperationResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to remove file/directory
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webcontainer/{containerId}/spawn:
+    post:
+      tags:
+        - webcontainer
+      summary: Spawn a process in the WebContainer
+      description: Execute a command in the container (returns mock response, actual execution via WebSocket)
+      operationId: spawnProcess
+      parameters:
+        - name: containerId
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpawnProcessRequest'
+      responses:
+        '200':
+          description: Process spawn initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpawnProcessResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webcontainer/{containerId}/url:
+    get:
+      tags:
+        - webcontainer
+      summary: Get the preview URL for the WebContainer
+      description: Retrieve the preview URL and port information for a WebContainer
+      operationId: getWebContainerUrl
+      parameters:
+        - name: containerId
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Preview URL retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreviewUrlResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Container preview port not available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webcontainer/{containerId}/mount:
+    post:
+      tags:
+        - webcontainer
+      summary: Mount files to the WebContainer
+      description: Mount a filesystem tree to the container
+      operationId: mountFiles
+      parameters:
+        - name: containerId
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MountFilesRequest'
+      responses:
+        '200':
+          description: Files mounted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MountFilesResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webcontainer/upload:
+    post:
+      tags:
+        - webcontainer
+      summary: Upload a file to a WebContainer via WebSocket
+      description: Upload a file to a container using WebSocket communication
+      operationId: uploadFile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadFileRequest'
+      responses:
+        '200':
+          description: File upload initiated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadFileResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to upload file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /webcontainer/{containerId}/status:
+    get:
+      tags:
+        - webcontainer
+      summary: Get WebContainer status
+      description: Retrieve the current status and information of a WebContainer
+      operationId: getWebContainerStatus
+      parameters:
+        - name: containerId
+          in: path
+          required: true
+          description: Container ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Container status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebContainerStatusResponse'
+        '404':
+          description: Container not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    ContainerInfo:
+      type: object
+      required:
+        - id
+        - status
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique container identifier
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        status:
+          type: string
+          enum: [creating, running, stopped, error]
+          description: Current container status
+          example: "running"
+        port:
+          type: integer
+          description: WebSocket port for container communication
+          example: 8342
+        previewPort:
+          type: integer
+          description: Port for web application preview
+          example: 3000
+        websocketUrl:
+          type: string
+          format: uri
+          description: WebSocket URL for real-time communication
+          example: "ws://localhost:3001/container"
+        previewUrl:
+          type: string
+          format: uri
+          description: Preview URL for web applications
+          example: "http://localhost:3000"
+        createdAt:
+          type: string
+          format: date-time
+          description: Container creation timestamp
+          example: "2025-09-18T10:30:00Z"
+
+    FileSystemTree:
+      type: object
+      description: Nested file system structure
+      additionalProperties:
+        $ref: '#/components/schemas/FileNode'
+      example:
+        "package.json":
+          file:
+            contents: |
+              {
+                "name": "my-app",
+                "version": "1.0.0"
+              }
+        "src":
+          directory:
+            "index.js":
+              file:
+                contents: "console.log('Hello World');"
+
+    FileNode:
+      type: object
+      description: File system node (file or directory)
+      properties:
+        file:
+          type: object
+          properties:
+            contents:
+              type: string
+              description: File contents
+        directory:
+          $ref: '#/components/schemas/FileSystemTree'
+      oneOf:
+        - required: [file]
+        - required: [directory]
+
+    SpawnOptions:
+      type: object
+      description: Options for process spawning
+      properties:
+        cwd:
+          type: string
+          description: Working directory for the process
+          example: "/workspace/src"
+        env:
+          type: object
+          additionalProperties:
+            type: string
+          description: Environment variables
+          example:
+            NODE_ENV: "development"
+            PORT: "3000"
+
+    WebContainerBootResponse:
+      type: object
+      required:
+        - containerId
+        - status
+      properties:
+        containerId:
+          type: string
+          format: uuid
+          description: Container identifier
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        url:
+          type: string
+          format: uri
+          description: WebSocket URL for container communication
+          example: "ws://localhost:3001/container"
+        status:
+          type: string
+          enum: [creating, running, stopped, error]
+          description: Container status
+          example: "running"
+
+    WriteFileRequest:
+      type: object
+      required:
+        - path
+        - contents
+      properties:
+        path:
+          type: string
+          description: File path
+          example: "src/index.js"
+        contents:
+          type: string
+          description: File contents
+          example: "console.log('Hello World');"
+        options:
+          type: object
+          description: Additional write options
+
+    ReadFileResponse:
+      type: object
+      required:
+        - contents
+        - path
+      properties:
+        contents:
+          type: string
+          description: File contents
+          example: "console.log('Hello World');"
+        path:
+          type: string
+          description: File path
+          example: "src/index.js"
+
+    ReadDirectoryResponse:
+      type: object
+      required:
+        - files
+        - path
+      properties:
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/DirectoryEntry'
+          description: Directory contents
+        path:
+          type: string
+          description: Directory path
+          example: "src"
+
+    DirectoryEntry:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: File or directory name
+          example: "index.js"
+        type:
+          type: string
+          enum: [file, directory]
+          description: Entry type
+          example: "file"
+
+    CreateDirectoryRequest:
+      type: object
+      required:
+        - path
+      properties:
+        path:
+          type: string
+          description: Directory path to create
+          example: "src/components"
+        options:
+          type: object
+          description: Additional creation options
+
+    RemoveRequest:
+      type: object
+      required:
+        - path
+      properties:
+        path:
+          type: string
+          description: Path to remove
+          example: "src/temp.js"
+        options:
+          type: object
+          description: Additional removal options
+
+    SpawnProcessRequest:
+      type: object
+      required:
+        - command
+      properties:
+        command:
+          type: string
+          description: Command to execute
+          example: "npm"
+        args:
+          type: array
+          items:
+            type: string
+          description: Command arguments
+          example: ["install", "--save", "express"]
+        options:
+          $ref: '#/components/schemas/SpawnOptions'
+
+    SpawnProcessResponse:
+      type: object
+      required:
+        - pid
+        - command
+        - status
+        - output
+      properties:
+        pid:
+          type: integer
+          description: Process ID (mock)
+          example: 1234
+        command:
+          type: string
+          description: Executed command
+          example: "npm"
+        args:
+          type: array
+          items:
+            type: string
+          description: Command arguments
+          example: ["install"]
+        status:
+          type: string
+          description: Process status
+          example: "running"
+        output:
+          type: string
+          description: Command output preview
+          example: "Executing: npm install"
+
+    MountFilesRequest:
+      type: object
+      required:
+        - files
+      properties:
+        files:
+          $ref: '#/components/schemas/FileSystemTree'
+        options:
+          type: object
+          description: Mount options
+
+    MountFilesResponse:
+      type: object
+      required:
+        - success
+        - message
+        - fileCount
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: "Files mounted successfully"
+        fileCount:
+          type: integer
+          description: Number of files mounted
+          example: 5
+
+    UploadFileRequest:
+      type: object
+      required:
+        - containerId
+        - filename
+        - targetPath
+        - content
+      properties:
+        containerId:
+          type: string
+          format: uuid
+          description: Target container ID
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        filename:
+          type: string
+          description: File name
+          example: "app.js"
+        targetPath:
+          type: string
+          description: Target path in container
+          example: "/workspace/src"
+        content:
+          type: string
+          description: File content
+        encoding:
+          type: string
+          enum: [utf8, base64]
+          default: utf8
+          description: Content encoding
+
+    UploadFileResponse:
+      type: object
+      required:
+        - success
+        - filename
+        - targetPath
+        - message
+      properties:
+        success:
+          type: boolean
+          example: true
+        filename:
+          type: string
+          example: "app.js"
+        targetPath:
+          type: string
+          example: "/workspace/src"
+        message:
+          type: string
+          example: "File uploaded successfully"
+
+    WebContainerStatusResponse:
+      type: object
+      required:
+        - status
+        - containerId
+        - createdAt
+      properties:
+        status:
+          type: string
+          enum: [creating, running, stopped, error]
+          description: Container status
+          example: "running"
+        containerId:
+          type: string
+          format: uuid
+          description: Container ID
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        websocketUrl:
+          type: string
+          format: uri
+          description: WebSocket URL
+          example: "ws://localhost:3001/container"
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2025-09-18T10:30:00Z"
+
+    PreviewUrlResponse:
+      type: object
+      required:
+        - url
+        - containerId
+        - port
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Preview URL
+          example: "http://localhost:3000"
+        containerId:
+          type: string
+          format: uuid
+          description: Container ID
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        port:
+          type: integer
+          description: Preview port
+          example: 3000
+
+    FileOperationResponse:
+      type: object
+      required:
+        - success
+        - path
+        - message
+      properties:
+        success:
+          type: boolean
+          example: true
+        path:
+          type: string
+          description: Target path
+          example: "src/index.js"
+        message:
+          type: string
+          description: Operation result message
+          example: "File written successfully"
+
+    ErrorResponse:
+      type: object
+      required:
+        - message
+        - statusCode
+      properties:
+        message:
+          type: string
+          description: Error message
+          example: "Container not found"
+        statusCode:
+          type: integer
+          description: HTTP status code
+          example: 404
+        error:
+          type: string
+          description: Error type
+          example: "Not Found"
+
+  securitySchemes: {}
+
+# WebSocket Events Documentation
+#
+# The Container Manager also provides WebSocket communication for real-time container interactions.
+# WebSocket namespace: /container
+#
+# Connection:
+# 1. Connect to ws://localhost:3001/container
+# 2. Emit 'join-container' event with containerId
+#
+# Events:
+# - join-container: { containerId: string } - Join container session
+# - fs-operation: FileSystemOperation - Execute file system commands
+# - process-operation: ProcessOperation - Spawn processes
+# - terminal-input: { containerId: string, input: string } - Send terminal input
+# - terminal-output: { output: string } - Receive terminal output
+# - error: { message: string } - Error notifications
+#
+# File System Operations via WebSocket:
+# - type: 'writeFile' | 'readFile' | 'readdir' | 'mkdir' | 'rm'
+# - path: string - Target path
+# - contents?: string - File contents (for writeFile)
+# - options?: any - Additional options
+#
+# Process Operations via WebSocket:
+# - type: 'spawn'
+# - command: string - Command to execute
+# - args?: string[] - Command arguments
+# - options?: SpawnOptions - Spawn options (cwd, env)
+#
+# All WebSocket operations execute real Docker commands and maintain persistent
+# working directory state across terminal sessions.

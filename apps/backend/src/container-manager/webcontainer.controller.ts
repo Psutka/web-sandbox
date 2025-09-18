@@ -52,11 +52,30 @@ export class WebContainerController {
       throw new HttpException('Container not found', HttpStatus.NOT_FOUND);
     }
 
-    return {
-      success: true,
-      path: writeFileDto.path,
-      message: 'File written successfully',
-    };
+    try {
+      const writeResult = await this.containerService.executeCommand(
+        containerId,
+        `echo '${writeFileDto.contents.replace(/'/g, "'\\''")}' > ${writeFileDto.path}`
+      );
+
+      if (writeResult.error) {
+        throw new HttpException(
+          `Failed to write file: ${writeResult.error}`,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      return {
+        success: true,
+        path: writeFileDto.path,
+        message: 'File written successfully',
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Failed to write file: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Get(':containerId/fs/readFile/:path(*)')
@@ -70,10 +89,29 @@ export class WebContainerController {
       throw new HttpException('Container not found', HttpStatus.NOT_FOUND);
     }
 
-    return {
-      contents: `// Contents of ${path}`,
-      path,
-    };
+    try {
+      const readResult = await this.containerService.executeCommand(
+        containerId,
+        `cat ${path}`
+      );
+
+      if (readResult.error) {
+        throw new HttpException(
+          `Failed to read file: ${readResult.error}`,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      return {
+        contents: readResult.output,
+        path,
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Failed to read file: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Get(':containerId/fs/readdir/:path(*)')
@@ -87,14 +125,37 @@ export class WebContainerController {
       throw new HttpException('Container not found', HttpStatus.NOT_FOUND);
     }
 
-    return {
-      files: [
-        { name: 'package.json', type: 'file' },
-        { name: 'src', type: 'directory' },
-        { name: 'node_modules', type: 'directory' },
-      ],
-      path,
-    };
+    try {
+      const dirResult = await this.containerService.executeCommand(
+        containerId,
+        `ls -la ${path} | tail -n +2 | awk '{print $9, $1}' | grep -v "^\\.$" | grep -v "^\\.\\.\\s"`
+      );
+
+      if (dirResult.error) {
+        throw new HttpException(
+          `Failed to read directory: ${dirResult.error}`,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      const files = dirResult.output
+        .split('\n')
+        .filter(line => line.trim())
+        .map(line => {
+          const [name, permissions] = line.split(' ');
+          return {
+            name,
+            type: permissions.startsWith('d') ? 'directory' : 'file'
+          };
+        });
+
+      return { files, path };
+    } catch (error) {
+      throw new HttpException(
+        `Failed to read directory: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Post(':containerId/fs/mkdir')
@@ -108,11 +169,30 @@ export class WebContainerController {
       throw new HttpException('Container not found', HttpStatus.NOT_FOUND);
     }
 
-    return {
-      success: true,
-      path: mkdirDto.path,
-      message: 'Directory created successfully',
-    };
+    try {
+      const mkdirResult = await this.containerService.executeCommand(
+        containerId,
+        `mkdir -p ${mkdirDto.path}`
+      );
+
+      if (mkdirResult.error) {
+        throw new HttpException(
+          `Failed to create directory: ${mkdirResult.error}`,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      return {
+        success: true,
+        path: mkdirDto.path,
+        message: 'Directory created successfully',
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Failed to create directory: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Delete(':containerId/fs/rm')
@@ -126,11 +206,30 @@ export class WebContainerController {
       throw new HttpException('Container not found', HttpStatus.NOT_FOUND);
     }
 
-    return {
-      success: true,
-      path: rmDto.path,
-      message: 'File/directory removed successfully',
-    };
+    try {
+      const rmResult = await this.containerService.executeCommand(
+        containerId,
+        `rm -rf ${rmDto.path}`
+      );
+
+      if (rmResult.error) {
+        throw new HttpException(
+          `Failed to remove: ${rmResult.error}`,
+          HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      }
+
+      return {
+        success: true,
+        path: rmDto.path,
+        message: 'File/directory removed successfully',
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Failed to remove: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Post(':containerId/spawn')
@@ -161,9 +260,15 @@ export class WebContainerController {
       throw new HttpException('Container not found', HttpStatus.NOT_FOUND);
     }
 
+    const previewPort = await this.containerService.getContainerPreviewPort(containerId);
+    if (!previewPort) {
+      throw new HttpException('Container preview port not available', HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
     return {
-      url: `http://localhost:3000`, // This would be dynamically assigned in a real implementation
+      url: `http://localhost:${previewPort}`,
       containerId,
+      port: previewPort,
     };
   }
 
@@ -183,6 +288,48 @@ export class WebContainerController {
       message: 'Files mounted successfully',
       fileCount: Object.keys(mountDto.files).length,
     };
+  }
+
+  @Post('upload')
+  @ApiOperation({ summary: 'Upload a file to a WebContainer via WebSocket' })
+  @ApiResponse({ status: 200, description: 'File upload initiated successfully' })
+  async upload(
+    @Body() uploadDto: {
+      containerId: string;
+      filename: string;
+      targetPath: string;
+      content: string;
+      encoding?: 'utf8' | 'base64';
+    },
+  ) {
+    const container = this.containerService.getContainer(uploadDto.containerId);
+    if (!container) {
+      throw new HttpException('Container not found', HttpStatus.NOT_FOUND);
+    }
+
+    try {
+      // Send file upload request through WebSocket gateway
+      const result = await this.containerService.uploadFileViaWebSocket(
+        uploadDto.containerId,
+        uploadDto.filename,
+        uploadDto.targetPath,
+        uploadDto.content,
+        uploadDto.encoding || 'utf8'
+      );
+
+      return {
+        success: true,
+        filename: uploadDto.filename,
+        targetPath: uploadDto.targetPath,
+        message: 'File uploaded successfully',
+        ...result
+      };
+    } catch (error) {
+      throw new HttpException(
+        `Failed to upload file: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
   }
 
   @Get(':containerId/status')

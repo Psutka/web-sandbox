@@ -1,0 +1,84 @@
+sequenceDiagram
+    participant Client as Frontend Client
+    participant API as REST API
+    participant Gateway as WebSocket Gateway
+    participant Service as Container Service
+    participant Docker as Docker Container
+
+    %% Initial container creation
+    Client->>API: POST /containers (create container)
+    API->>Service: createContainer()
+    Service->>Docker: create & start container
+    Docker-->>Service: container ID & port
+    Service-->>API: containerInfo {id, port, status}
+    API-->>Client: containerInfo
+
+    %% WebSocket connection establishment
+    Client->>Gateway: connect to /container namespace
+    Client->>Gateway: emit 'join-container' {containerId}
+    Gateway->>Service: validateContainer(containerId)
+    Service-->>Gateway: container exists
+    Gateway-->>Client: connection established
+
+    %% File system operations via WebSocket
+    Client->>Gateway: emit 'fs-operation' {type: 'writeFile', path, contents}
+    Gateway->>Service: writeFileToContainer(containerId, path, contents)
+    Service->>Docker: docker exec -i container sh -c "echo 'contents' > /path"
+    Docker-->>Service: execution result
+    Service-->>Gateway: operation result
+    Gateway-->>Client: emit 'fs-result' {success, data}
+
+    Client->>Gateway: emit 'fs-operation' {type: 'readFile', path}
+    Gateway->>Service: readFileFromContainer(containerId, path)
+    Service->>Docker: docker exec container cat /path
+    Docker-->>Service: file contents
+    Service-->>Gateway: file contents
+    Gateway-->>Client: emit 'fs-result' {success, data: contents}
+
+    Client->>Gateway: emit 'fs-operation' {type: 'readdir', path}
+    Gateway->>Service: readDirectoryFromContainer(containerId, path)
+    Service->>Docker: docker exec container ls -la /path
+    Docker-->>Service: directory listing
+    Service->>Service: parseDirectoryListing()
+    Service-->>Gateway: parsed file list
+    Gateway-->>Client: emit 'fs-result' {success, data: files[]}
+
+    %% Terminal operations with working directory state
+    Client->>Gateway: emit 'terminal-input' {containerId, command: 'cd /workspace'}
+    Gateway->>Gateway: handleCdCommand() - update containerWorkingDirs
+    Gateway-->>Client: emit 'terminal-output' {output: 'Directory changed'}
+
+    Client->>Gateway: emit 'terminal-input' {containerId, command: 'npm install'}
+    Gateway->>Gateway: get current working dir from containerWorkingDirs
+    Gateway->>Service: execInContainer(containerId, 'cd /workspace && npm install')
+    Service->>Docker: docker exec container sh -c "cd /workspace && npm install"
+    Docker-->>Service: stream output (with 8-byte headers)
+    Service->>Service: parseDockerStream() - handle stdout/stderr
+    Service-->>Gateway: parsed output
+    Gateway-->>Client: emit 'terminal-output' {output, type: 'stdout'}
+
+    %% Process spawning
+    Client->>Gateway: emit 'process-operation' {command: 'npm', args: ['run', 'dev']}
+    Gateway->>Service: spawnProcess(containerId, command, args)
+    Service->>Docker: docker exec container npm run dev
+    Docker-->>Service: process output stream
+    Service-->>Gateway: process output
+    Gateway-->>Client: emit 'process-output' {data, pid}
+
+    %% Error handling
+    Client->>Gateway: emit 'fs-operation' {type: 'readFile', path: '/nonexistent'}
+    Gateway->>Service: readFileFromContainer(containerId, '/nonexistent')
+    Service->>Docker: docker exec container cat /nonexistent
+    Docker-->>Service: error (file not found)
+    Service-->>Gateway: error result
+    Gateway-->>Client: emit 'error' {message: 'File not found'}
+
+    %% Container cleanup
+    Client->>API: DELETE /containers/{containerId}
+    API->>Service: stopContainer(containerId)
+    Service->>Docker: stop & remove container
+    Service->>Service: cleanup state (containers, dockerContainers, containerWorkingDirs)
+    Docker-->>Service: container removed
+    Service-->>API: cleanup complete
+    API-->>Client: container deleted
+    Gateway->>Gateway: disconnect WebSocket connections for containerId

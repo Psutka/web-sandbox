@@ -26,7 +26,9 @@ export interface ContainerInfo {
   id: string;
   status: 'creating' | 'running' | 'stopped' | 'error';
   port?: number;
+  previewPort?: number;
   websocketUrl?: string;
+  previewUrl?: string;
   createdAt: Date;
 }
 

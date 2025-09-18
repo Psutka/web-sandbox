@@ -1,3 +1,6 @@
+# Container Manager Architecture Flow
+
+```mermaid
 flowchart TD
     %% Frontend Components
     UI[Next.js Frontend App]
@@ -114,3 +117,26 @@ flowchart TD
     class CMC,WCC,CMS,CG backend
     class DOCKER,CONT external
     class MAPS state
+```
+
+## Key Interaction Patterns
+
+### 1. Container Lifecycle
+- **Creation**: Frontend → REST API → ContainerManagerService → Docker Engine
+- **Management**: State stored in three Maps (containers, dockerContainers, containerWorkingDirs)
+- **Cleanup**: DELETE endpoint removes container and cleans all state
+
+### 2. Real-time Operations
+- **WebSocket Connection**: Client connects to `/container` namespace
+- **Command Execution**: All file ops, process spawning, and terminal commands via WebSocket
+- **Working Directory**: Persistent state maintained in `containerWorkingDirs` Map
+
+### 3. File System Integration
+- **Real Docker Commands**: All operations execute actual Docker exec commands
+- **Stream Parsing**: 8-byte header parsing for stdout/stderr multiplexing
+- **Shell Escaping**: Proper escaping for file contents in shell commands
+
+### 4. Dual API Approach
+- **Direct Container API**: Full container management via ContainerManagerController
+- **WebContainer Compatible**: Migration-friendly API via WebContainerController
+- **Unified Backend**: Both APIs use the same ContainerManagerService

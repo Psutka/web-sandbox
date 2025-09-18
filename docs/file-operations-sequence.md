@@ -1,3 +1,6 @@
+# File Operations Sequence Diagram
+
+```mermaid
 sequenceDiagram
     participant U as User
     participant FE as FileExplorer Component
@@ -184,3 +187,45 @@ sequenceDiagram
     CG-->>WS: emit('error', { message: "cat: can't open...", operation: 'readFile' })
     WS-->>FE: Error received
     FE-->>U: Show error message in UI
+```
+
+## Key File Operation Patterns
+
+### 1. **WebSocket-Based Operations**
+- All file operations go through WebSocket for real-time feedback
+- Operations are queued and processed sequentially
+- Results/errors are emitted back to the client immediately
+
+### 2. **Real Docker Command Execution**
+- **Every file operation** executes actual Docker commands
+- **No mock data** - all operations affect the real container filesystem
+- Commands use shell escaping for safe content handling
+
+### 3. **Shell Command Patterns**
+- **Write File**: `echo 'escaped_content' > path`
+- **Read File**: `cat path`
+- **List Directory**: `ls -la path | tail -n +2 | awk '{print $9, $1}'`
+- **Create Directory**: `mkdir -p path`
+- **Delete**: `rm -rf path`
+
+### 4. **Content Escaping**
+- **Text Files**: Single quotes escaped as `'\''`
+- **Binary Files**: Base64 encoded, then `| base64 -d > file`
+- **Shell Safety**: All paths and contents properly escaped
+
+### 5. **Stream Processing**
+- **Docker Exec Streams**: 8-byte header parsing for stdout/stderr separation
+- **Output Parsing**: Directory listings parsed into structured file objects
+- **Error Detection**: stderr content properly captured and handled
+
+### 6. **File Upload Handling**
+- **Multiple Formats**: Supports both text (UTF-8) and binary (base64) uploads
+- **Directory Creation**: Automatically creates parent directories
+- **Large Files**: Streams handled efficiently through Docker exec
+
+### 7. **Initial File Setup**
+- **Boot Time**: Files can be written during container creation
+- **Recursive Structure**: Supports nested directory structures
+- **FileSystemTree**: Hierarchical file/directory representation
+
+This design ensures that all file operations are real, persistent, and properly synchronized between the frontend file explorer and the actual container filesystem.

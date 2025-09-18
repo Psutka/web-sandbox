@@ -11,12 +11,13 @@ import {
 import { ContainerManager } from '@/components/ContainerManager'
 import { Terminal } from '@/components/Terminal'
 import { FileExplorer } from '@/components/FileExplorer'
+import { FileUploadPanel } from '@/components/FileUploadPanel'
 
 export default function Home() {
   const [activeContainer, setActiveContainer] = useState<string | null>(null)
 
   return (
-    <Container maxWidth="xl" className="py-8">
+    <Container maxWidth="xl" className="py-8" sx={{ pb: 20 }}>
       <Box sx={{ mb: 4 }}>
         <Typography variant="h3" component="h1" gutterBottom>
           Agent App - Container Manager
@@ -32,7 +33,7 @@ export default function Home() {
             <Typography variant="h5" gutterBottom>
               Container Manager
             </Typography>
-            <ContainerManager 
+            <ContainerManager
               onContainerSelect={setActiveContainer}
               activeContainer={activeContainer}
             />
@@ -57,6 +58,8 @@ export default function Home() {
           </Paper>
         </Grid>
       </Grid>
+
+      <FileUploadPanel containerId={activeContainer} />
     </Container>
   )
 }
