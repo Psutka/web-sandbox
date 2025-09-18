@@ -1,0 +1,189 @@
+# System Architecture Flow Diagram
+
+```mermaid
+flowchart TD
+    %% Frontend Components
+    FE[Frontend - Next.js App<br/>Port 3000]
+    CM[Container Manager UI]
+    FE_API[File Explorer UI]
+    TERM[Terminal UI]
+
+    %% API Layers
+    HTTP_API[HTTP API Layer]
+    WS_API[WebSocket API Layer]
+
+    %% Backend Services
+    BE[Backend - NestJS App<br/>Port 3001]
+    WC_CTRL[WebContainer Controller<br/>REST Endpoints]
+    CONT_CTRL[Container Controller<br/>Direct Management]
+    CONT_GW[Container Gateway<br/>WebSocket Handler]
+
+    %% Core Service
+    CMS[Container Manager Service<br/>Core Business Logic]
+
+    %% Docker Integration
+    DOCKER[Docker Engine]
+    CONT1[Docker Container 1<br/>node:alpine]
+    CONT2[Docker Container 2<br/>node:alpine]
+    CONT3[Docker Container N<br/>node:alpine]
+
+    %% Data Storage
+    MEM_STORE[In-Memory Storage<br/>Maps & State]
+
+    %% Client Interactions
+    FE --> CM
+    FE --> FE_API
+    FE --> TERM
+
+    %% API Layer Routing
+    CM --> HTTP_API
+    FE_API --> HTTP_API
+    FE_API --> WS_API
+    TERM --> WS_API
+
+    %% Backend API Processing
+    HTTP_API --> BE
+    WS_API --> BE
+
+    %% Controller Layer
+    BE --> WC_CTRL
+    BE --> CONT_CTRL
+    BE --> CONT_GW
+
+    %% Service Integration
+    WC_CTRL --> CMS
+    CONT_CTRL --> CMS
+    CONT_GW --> CMS
+
+    %% Docker Operations
+    CMS --> DOCKER
+    CMS --> MEM_STORE
+
+    %% Container Management
+    DOCKER --> CONT1
+    DOCKER --> CONT2
+    DOCKER --> CONT3
+
+    %% Specific API Flows
+    subgraph "WebContainer API Flow"
+        WC_BOOT[POST /webcontainer/boot]
+        WC_FS[File System Operations<br/>writeFile, readFile, etc.]
+        WC_PROC[Process Operations<br/>spawn commands]
+        WC_URL[GET /webcontainer/:id/url]
+    end
+
+    subgraph "Direct Container API Flow"
+        DC_CREATE[POST /containers]
+        DC_DELETE[DELETE /containers/:id]
+        DC_LIST[GET /containers]
+        DC_GET[GET /containers/:id]
+    end
+
+    subgraph "WebSocket Events"
+        WS_JOIN[join-container]
+        WS_FS[fs-operation]
+        WS_PROC[process-operation]
+        WS_TERM[terminal-input/output]
+    end
+
+    %% API Flow Connections
+    WC_CTRL --> WC_BOOT
+    WC_CTRL --> WC_FS
+    WC_CTRL --> WC_PROC
+    WC_CTRL --> WC_URL
+
+    CONT_CTRL --> DC_CREATE
+    CONT_CTRL --> DC_DELETE
+    CONT_CTRL --> DC_LIST
+    CONT_CTRL --> DC_GET
+
+    CONT_GW --> WS_JOIN
+    CONT_GW --> WS_FS
+    CONT_GW --> WS_PROC
+    CONT_GW --> WS_TERM
+
+    %% Container State Management
+    subgraph "Container State"
+        STATE_MAP[Container Info Map<br/>UUID → ContainerInfo]
+        DOCKER_MAP[Docker Container Map<br/>UUID → Docker ID]
+        PORT_MGT[Port Management<br/>Dynamic Assignment]
+    end
+
+    CMS --> STATE_MAP
+    CMS --> DOCKER_MAP
+    CMS --> PORT_MGT
+
+    %% Data Flow Styling
+    classDef frontend fill:#e1f5fe
+    classDef backend fill:#f3e5f5
+    classDef service fill:#e8f5e8
+    classDef docker fill:#fff3e0
+    classDef storage fill:#fce4ec
+
+    class FE,CM,FE_API,TERM frontend
+    class BE,WC_CTRL,CONT_CTRL,CONT_GW backend
+    class CMS service
+    class DOCKER,CONT1,CONT2,CONT3 docker
+    class MEM_STORE,STATE_MAP,DOCKER_MAP,PORT_MGT storage
+```
+
+## Key Interaction Flows
+
+### 1. Container Creation Flow
+```mermaid
+sequenceDiagram
+    participant Client
+    participant WebContainer Controller
+    participant Container Manager Service
+    participant Docker Engine
+    participant Container
+
+    Client->>WebContainer Controller: POST /webcontainer/boot
+    WebContainer Controller->>Container Manager Service: createContainer(files?)
+    Container Manager Service->>Docker Engine: createContainer(config)
+    Docker Engine->>Container: Create & Start
+    Container Manager Service->>Container: writeFilesToContainer(files)
+    Container Manager Service->>WebContainer Controller: ContainerInfo
+    WebContainer Controller->>Client: {containerId, url, status}
+```
+
+### 2. WebSocket Terminal Interaction Flow
+```mermaid
+sequenceDiagram
+    participant Terminal UI
+    participant Container Gateway
+    participant Container Manager Service
+    participant Docker Container
+
+    Terminal UI->>Container Gateway: connect to /container namespace
+    Terminal UI->>Container Gateway: join-container {containerId}
+    Container Gateway->>Container Manager Service: getContainer(containerId)
+    Container Gateway->>Terminal UI: joined-container
+
+    Terminal UI->>Container Gateway: terminal-input {command}
+    Container Gateway->>Container Manager Service: executeCommand(containerId, command)
+    Container Manager Service->>Docker Container: docker exec [sh, -c, command]
+    Docker Container->>Container Manager Service: output stream
+    Container Manager Service->>Container Gateway: {output, error?, exitCode?}
+    Container Gateway->>Terminal UI: terminal-output {output}
+```
+
+### 3. File System Operations Flow
+```mermaid
+sequenceDiagram
+    participant File Explorer UI
+    participant WebSocket/HTTP API
+    participant Container Gateway/Controller
+    participant Container Manager Service
+    participant Docker Container
+
+    File Explorer UI->>WebSocket/HTTP API: writeFile request
+    WebSocket/HTTP API->>Container Gateway/Controller: fs-operation/HTTP endpoint
+    Container Gateway/Controller->>Container Manager Service: getContainer(containerId)
+    Container Manager Service->>Docker Container: docker exec [mkdir, echo, etc.]
+    Docker Container->>Container Manager Service: execution result
+    Container Manager Service->>Container Gateway/Controller: operation result
+    Container Gateway/Controller->>File Explorer UI: success/error response
+```
+
+This diagram shows the complete system architecture with major services and their interactions for the WebContainer-to-Docker implementation.
