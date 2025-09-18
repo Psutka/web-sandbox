@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "pnpm -r build",
-    "dev": "concurrently \"pnpm --filter apps/backend dev\" \"pnpm --filter apps/frontend dev\"",
-    "lint": "pnpm -r lint",
-    "clean": "pnpm -r clean",
-    "install:all": "pnpm install"
+    "build": "cd apps/backend && npm run build && cd ../frontend && npm run build",
+    "dev": "concurrently \"cd apps/backend && npm run dev\" \"cd apps/frontend && npm run dev\"",
+    "lint": "cd apps/backend && npm run lint && cd ../frontend && npm run lint",
+    "clean": "cd apps/backend && npm run clean && cd ../frontend && npm run clean",
+    "install:all": "npm install && cd apps/backend && npm install && cd ../frontend && npm install"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

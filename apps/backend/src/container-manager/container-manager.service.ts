@@ -8,6 +8,7 @@ export class ContainerManagerService {
   private readonly logger = new Logger(ContainerManagerService.name);
   private docker: Docker;
   private containers = new Map<string, ContainerInfo>();
+  private dockerContainers = new Map<string, string>(); // containerId -> dockerContainerId
   private readonly BASE_PORT = 8000;
 
   constructor() {
@@ -29,7 +30,7 @@ export class ContainerManagerService {
       this.containers.set(containerId, containerInfo);
 
       const container = await this.docker.createContainer({
-        Image: 'node:18-alpine',
+        Image: 'node:alpine',
         Cmd: ['/bin/sh', '-c', 'apk add --no-cache socat && while true; do sleep 1000; done'],
         WorkingDir: '/workspace',
         ExposedPorts: {
@@ -52,13 +53,16 @@ export class ContainerManagerService {
 
       await container.start();
 
+      // Store the Docker container ID mapping
+      this.dockerContainers.set(containerId, container.id);
+
       if (files) {
         await this.writeFilesToContainer(container, files);
       }
 
       containerInfo.status = 'running';
       containerInfo.websocketUrl = `ws://localhost:${port}`;
-      
+
       this.containers.set(containerId, containerInfo);
       this.logger.log(`Container ${containerId} created and started on port ${port}`);
 
@@ -95,6 +99,7 @@ export class ContainerManagerService {
 
       containerInfo.status = 'stopped';
       this.containers.delete(containerId);
+      this.dockerContainers.delete(containerId);
       this.logger.log(`Container ${containerId} deleted`);
     } catch (error) {
       this.logger.error(`Failed to delete container ${containerId}:`, error);
@@ -108,6 +113,28 @@ export class ContainerManagerService {
 
   getAllContainers(): ContainerInfo[] {
     return Array.from(this.containers.values());
+  }
+
+  async executeCommand(containerId: string, command: string): Promise<{ output: string; error?: string; exitCode?: number }> {
+    try {
+      const containerInfo = this.containers.get(containerId);
+      if (!containerInfo) {
+        throw new Error(`Container ${containerId} not found`);
+      }
+
+      const dockerContainerId = this.dockerContainers.get(containerId);
+      if (!dockerContainerId) {
+        throw new Error(`Docker container ID for ${containerId} not found`);
+      }
+
+      const container = this.docker.getContainer(dockerContainerId);
+      const output = await this.execInContainer(container, ['sh', '-c', command]);
+
+      return { output: output.trim() };
+    } catch (error) {
+      this.logger.error(`Failed to execute command in container ${containerId}:`, error);
+      return { output: '', error: error.message };
+    }
   }
 
   private async writeFilesToContainer(container: Docker.Container, files: FileSystemTree, basePath = '/workspace'): Promise<void> {

@@ -31,18 +31,22 @@ export function Terminal({ containerId }: TerminalProps) {
       const socket = websocket.connect(containerId)
 
       socket.on('joined-container', (data) => {
+        console.log('Terminal: Joined container event received:', data)
         addLine('output', `Connected to container ${data.containerId}`)
       })
 
       socket.on('terminal-output', (data) => {
+        console.log('Terminal: Terminal output received:', data)
         addLine('output', data.output)
       })
 
       socket.on('process-result', (data) => {
+        console.log('Terminal: Process result received:', data)
         addLine('output', data.result.output || `Process started with PID: ${data.result.pid}`)
       })
 
       socket.on('error', (error) => {
+        console.log('Terminal: Error event received:', error)
         addLine('error', error.message)
       })
 
@@ -53,10 +57,12 @@ export function Terminal({ containerId }: TerminalProps) {
         setWs(null)
       }
     } else {
-      if (ws) {
-        ws.disconnect()
-        setWs(null)
-      }
+      setWs(prev => {
+        if (prev) {
+          prev.disconnect()
+        }
+        return null
+      })
       setLines([])
     }
   }, [containerId])
@@ -79,6 +85,7 @@ export function Terminal({ containerId }: TerminalProps) {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && input.trim()) {
       const command = input.trim()
+      console.log('Terminal: Command entered:', command)
       addLine('input', `$ ${command}`)
 
       // Parse command
@@ -87,18 +94,30 @@ export function Terminal({ containerId }: TerminalProps) {
       const args = parts.slice(1)
 
       if (ws) {
+        console.log('Terminal: WebSocket connected, processing command:', cmd, 'with args:', args)
         if (['ls', 'pwd', 'cat', 'echo', 'mkdir', 'rm', 'touch'].includes(cmd)) {
-          // File system commands
+          // File system commands - enhance ls to show file types
+          let commandToSend = cmd
+          let argsToSend = args
+
+          if (cmd === 'ls' && args.length === 0) {
+            // Use ls -la for better directory/file distinction
+            argsToSend = ['-la']
+          }
+
+          console.log('Terminal: Sending process operation for:', commandToSend, 'with args:', argsToSend)
           ws.sendProcessOperation({
             type: 'spawn',
-            command: cmd,
-            args: args
+            command: commandToSend,
+            args: argsToSend
           })
         } else {
           // Send as terminal input
+          console.log('Terminal: Sending terminal input for:', command)
           ws.sendTerminalInput(command)
         }
       } else {
+        console.log('Terminal: WebSocket not connected')
         addLine('error', 'Not connected to container')
       }
 

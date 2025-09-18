@@ -98,7 +98,7 @@ export class ContainerGateway implements OnGatewayConnection, OnGatewayDisconnec
   }
 
   @SubscribeMessage('terminal-input')
-  handleTerminalInput(
+  async handleTerminalInput(
     @MessageBody() data: { input: string },
     @ConnectedSocket() client: Socket,
   ) {
@@ -108,8 +108,14 @@ export class ContainerGateway implements OnGatewayConnection, OnGatewayDisconnec
       return;
     }
 
-    // Echo input back for now - in a real implementation, this would be sent to the container's shell
-    client.emit('terminal-output', { output: data.input });
+    try {
+      this.logger.log(`Executing terminal command in container ${containerId}: ${data.input}`);
+      const result = await this.containerService.executeCommand(containerId, data.input);
+      client.emit('terminal-output', { output: result.output || result.error || 'Command executed' });
+    } catch (error) {
+      this.logger.error(`Terminal command failed: ${error.message}`);
+      client.emit('terminal-output', { output: `Error: ${error.message}` });
+    }
   }
 
   private async executeFileSystemOperation(
@@ -145,16 +151,20 @@ export class ContainerGateway implements OnGatewayConnection, OnGatewayDisconnec
     operation: ProcessOperation,
   ): Promise<any> {
     if (operation.type === 'spawn') {
-      // This is a simplified implementation
-      // In a real scenario, you would spawn the process in the Docker container
-      
+      const command = operation.args
+        ? `${operation.command} ${operation.args.join(' ')}`
+        : operation.command;
+
+      this.logger.log(`Executing process in container ${containerId}: ${command}`);
+      const result = await this.containerService.executeCommand(containerId, command);
+
       return {
         pid: Math.floor(Math.random() * 10000),
-        output: `Executing: ${operation.command} ${operation.args?.join(' ') || ''}`,
-        exitCode: 0,
+        output: result.output || result.error || 'Command executed',
+        exitCode: result.exitCode || 0,
       };
     }
-    
+
     throw new Error(`Unknown process operation: ${operation.type}`);
   }
 }

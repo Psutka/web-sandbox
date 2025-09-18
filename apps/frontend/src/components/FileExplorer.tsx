@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Box,
   List,
@@ -50,15 +50,7 @@ export function FileExplorer({ containerId }: FileExplorerProps) {
     name: ''
   })
 
-  useEffect(() => {
-    if (containerId) {
-      loadFiles(currentPath)
-    } else {
-      setFiles([])
-    }
-  }, [containerId, currentPath])
-
-  const loadFiles = async (path: string) => {
+  const loadFiles = useCallback(async (path: string) => {
     if (!containerId) return
 
     try {
@@ -72,7 +64,15 @@ export function FileExplorer({ containerId }: FileExplorerProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [containerId])
+
+  useEffect(() => {
+    if (containerId) {
+      loadFiles(currentPath)
+    } else {
+      setFiles([])
+    }
+  }, [containerId, currentPath, loadFiles])
 
   const handleFileClick = (file: FileItem) => {
     if (file.type === 'directory') {

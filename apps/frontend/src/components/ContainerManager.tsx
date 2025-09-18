@@ -50,8 +50,11 @@ export function ContainerManager({ onContainerSelect, activeContainer }: Contain
   }
 
   const createContainer = async () => {
+    console.log('Create container button clicked')
     try {
       setLoading(true)
+      console.log('Setting loading to true')
+
       const sampleFiles = {
         'package.json': {
           file: {
@@ -82,14 +85,21 @@ server.listen(3000, () => {
         }
       }
 
+      console.log('Making API call to create container with files:', sampleFiles)
       const newContainer = await containerAPI.createContainer(sampleFiles)
+      console.log('Container created successfully:', newContainer)
+
+      console.log('Reloading containers list')
       await loadContainers()
+
+      console.log('Selecting new container:', newContainer.id)
       onContainerSelect(newContainer.id)
       setError(null)
     } catch (err) {
       setError('Failed to create container')
       console.error('Error creating container:', err)
     } finally {
+      console.log('Setting loading to false')
       setLoading(false)
     }
   }

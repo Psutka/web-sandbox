@@ -89,7 +89,7 @@ pnpm --filter apps/frontend <command>
 ## Docker Integration
 
 **Container Configuration**:
-- Base image: `node:18-alpine`
+- Base image: `node:alpine`
 - Working directory: `/workspace`
 - Exposed ports: Dynamic assignment + 3000 for web preview
 - Resource limits: 512MB memory, 512 CPU shares
