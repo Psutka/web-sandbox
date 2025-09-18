@@ -6,7 +6,7 @@ A monorepo containing a ContainerManager service that creates and manages Docker
 
 - **Backend** (`apps/backend`): NestJS service that manages Docker containers
 - **Frontend** (`apps/frontend`): Next.js AgentApp client with Material-UI and Tailwind CSS
-- **Monorepo**: npm workspaces with shared configurations
+- **Monorepo**: pnpm workspaces with shared configurations
 
 ## Features
 
@@ -23,19 +23,19 @@ A monorepo containing a ContainerManager service that creates and manages Docker
 
 - Node.js 18+
 - Docker Desktop
-- npm or yarn
+- pnpm (recommended) or npm
 
 ### Installation
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Copy environment variables
 cp apps/frontend/.env.local.example apps/frontend/.env.local
 
 # Start development servers
-npm run dev
+pnpm dev
 ```
 
 This will start:
@@ -70,16 +70,19 @@ Connect to `/container` namespace:
 
 ```bash
 # Run all services in development mode
-npm run dev
+pnpm dev
 
 # Build all packages
-npm run build
+pnpm build
 
 # Run linting
-npm run lint
+pnpm lint
 
 # Clean all build artifacts
-npm run clean
+pnpm clean
+
+# Install dependencies for all workspaces
+pnpm install
 ```
 
 ## Project Structure
@@ -155,7 +158,7 @@ ws.sendTerminalInput('ls -la')
 
 - **Backend**: NestJS, TypeScript, Docker API, Socket.IO
 - **Frontend**: Next.js 14, React 18, Material-UI, Tailwind CSS, Socket.IO Client
-- **Build System**: npm workspaces, TypeScript, ESLint
+- **Build System**: pnpm workspaces, TypeScript, ESLint
 - **Container Runtime**: Docker
 
 ## License

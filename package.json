@@ -3,16 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "npm run build --workspaces",
-    "dev": "concurrently \"npm run dev -w apps/backend\" \"npm run dev -w apps/frontend\"",
-    "lint": "npm run lint --workspaces",
-    "clean": "npm run clean --workspaces --if-present",
-    "install:all": "npm install && npm install --workspaces"
+    "build": "pnpm -r build",
+    "dev": "concurrently \"pnpm --filter apps/backend dev\" \"pnpm --filter apps/frontend dev\"",
+    "lint": "pnpm -r lint",
+    "clean": "pnpm -r clean",
+    "install:all": "pnpm install"
   },
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "devDependencies": {
     "@types/node": "^20.0.0",
     "typescript": "^5.0.0",
@@ -20,5 +16,6 @@
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "concurrently": "^8.2.0"
-  }
+  },
+  "packageManager": "pnpm@8.0.0"
 }
