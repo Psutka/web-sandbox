@@ -46,9 +46,9 @@ export class ContainerManagerService {
           CpuShares: 512,
         },
         Env: [
-          'NODE_ENV=development',
+          'NODE_ENV=production',
           `WEBSOCKET_PORT=${port}`,
-        ],
+        ]
       });
 
       await container.start();
