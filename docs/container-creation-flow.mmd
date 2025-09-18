@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant Client
+    participant WebContainer Controller
+    participant Container Manager Service
+    participant Docker Engine
+    participant Container
+
+    Client->>WebContainer Controller: POST /webcontainer/boot
+    WebContainer Controller->>Container Manager Service: createContainer(files?)
+    Container Manager Service->>Docker Engine: createContainer(config)
+    Docker Engine->>Container: Create & Start
+    Container Manager Service->>Container: writeFilesToContainer(files)
+    Container Manager Service->>WebContainer Controller: ContainerInfo
+    WebContainer Controller->>Client: {containerId, url, status}

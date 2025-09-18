@@ -47,6 +47,24 @@ pnpm --filter apps/backend <command>
 pnpm --filter apps/frontend <command>
 ```
 
+**Testing Commands (Backend)**:
+```bash
+# Run all tests
+pnpm --filter apps/backend test
+
+# Run tests in watch mode
+pnpm --filter apps/backend test:watch
+
+# Run tests with coverage
+pnpm --filter apps/backend test:cov
+
+# Run end-to-end tests
+pnpm --filter apps/backend test:e2e
+
+# Debug tests
+pnpm --filter apps/backend test:debug
+```
+
 ## API Architecture
 
 **Container Management Flow**:
@@ -99,6 +117,7 @@ pnpm --filter apps/frontend <command>
 - Initial files written during container creation via `writeFilesToContainer`
 - Runtime file operations executed via `execInContainer` method
 - File contents passed as shell commands with proper escaping
+- Docker exec streams use 8-byte headers for stdout/stderr multiplexing
 
 ## Environment Setup
 
@@ -140,3 +159,25 @@ To migrate from WebContainers to this system:
    const ws = new ContainerWebSocket()
    ws.connect(container.containerId)
    ```
+
+## Important Implementation Details
+
+**Stream Multiplexing**: Docker exec streams require proper handling of 8-byte headers:
+- Bytes 0-3: Stream type (0=stdin, 1=stdout, 2=stderr)
+- Bytes 4-7: Payload size (big-endian uint32)
+- Implementation in `container-manager.service.ts:154-198`
+
+**Container State Management**:
+- `containers` Map: UUID → ContainerInfo for application state
+- `dockerContainers` Map: UUID → Docker container ID for Docker API calls
+- Port assignment: Dynamic ports from BASE_PORT (8000) + random offset
+
+**Error Handling Patterns**:
+- Container not found: HTTP 404 responses
+- Docker API errors: Wrapped in HTTP 500 with error details
+- WebSocket errors: Emitted as `error` events to connected clients
+
+**Security Considerations**:
+- Shell command escaping for file contents: `node.file.contents.replace(/'/g, "'\\''")`
+- Resource limits enforced: 512MB memory, 512 CPU shares per container
+- Container isolation via Docker's namespace and cgroup mechanisms

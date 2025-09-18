@@ -1,6 +1,3 @@
-# System Architecture Flow Diagram
-
-```mermaid
 flowchart TD
     %% Frontend Components
     FE[Frontend - Next.js App<br/>Port 3000]
@@ -125,65 +122,3 @@ flowchart TD
     class CMS service
     class DOCKER,CONT1,CONT2,CONT3 docker
     class MEM_STORE,STATE_MAP,DOCKER_MAP,PORT_MGT storage
-```
-
-## Key Interaction Flows
-
-### 1. Container Creation Flow
-```mermaid
-sequenceDiagram
-    participant Client
-    participant WebContainer Controller
-    participant Container Manager Service
-    participant Docker Engine
-    participant Container
-
-    Client->>WebContainer Controller: POST /webcontainer/boot
-    WebContainer Controller->>Container Manager Service: createContainer(files?)
-    Container Manager Service->>Docker Engine: createContainer(config)
-    Docker Engine->>Container: Create & Start
-    Container Manager Service->>Container: writeFilesToContainer(files)
-    Container Manager Service->>WebContainer Controller: ContainerInfo
-    WebContainer Controller->>Client: {containerId, url, status}
-```
-
-### 2. WebSocket Terminal Interaction Flow
-```mermaid
-sequenceDiagram
-    participant Terminal UI
-    participant Container Gateway
-    participant Container Manager Service
-    participant Docker Container
-
-    Terminal UI->>Container Gateway: connect to /container namespace
-    Terminal UI->>Container Gateway: join-container {containerId}
-    Container Gateway->>Container Manager Service: getContainer(containerId)
-    Container Gateway->>Terminal UI: joined-container
-
-    Terminal UI->>Container Gateway: terminal-input {command}
-    Container Gateway->>Container Manager Service: executeCommand(containerId, command)
-    Container Manager Service->>Docker Container: docker exec [sh, -c, command]
-    Docker Container->>Container Manager Service: output stream
-    Container Manager Service->>Container Gateway: {output, error?, exitCode?}
-    Container Gateway->>Terminal UI: terminal-output {output}
-```
-
-### 3. File System Operations Flow
-```mermaid
-sequenceDiagram
-    participant File Explorer UI
-    participant WebSocket/HTTP API
-    participant Container Gateway/Controller
-    participant Container Manager Service
-    participant Docker Container
-
-    File Explorer UI->>WebSocket/HTTP API: writeFile request
-    WebSocket/HTTP API->>Container Gateway/Controller: fs-operation/HTTP endpoint
-    Container Gateway/Controller->>Container Manager Service: getContainer(containerId)
-    Container Manager Service->>Docker Container: docker exec [mkdir, echo, etc.]
-    Docker Container->>Container Manager Service: execution result
-    Container Manager Service->>Container Gateway/Controller: operation result
-    Container Gateway/Controller->>File Explorer UI: success/error response
-```
-
-This diagram shows the complete system architecture with major services and their interactions for the WebContainer-to-Docker implementation.

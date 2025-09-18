@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant Terminal UI
+    participant Container Gateway
+    participant Container Manager Service
+    participant Docker Container
+
+    Terminal UI->>Container Gateway: connect to /container namespace
+    Terminal UI->>Container Gateway: join-container {containerId}
+    Container Gateway->>Container Manager Service: getContainer(containerId)
+    Container Gateway->>Terminal UI: joined-container
+
+    Terminal UI->>Container Gateway: terminal-input {command}
+    Container Gateway->>Container Manager Service: executeCommand(containerId, command)
+    Container Manager Service->>Docker Container: docker exec [sh, -c, command]
+    Docker Container->>Container Manager Service: output stream
+    Container Manager Service->>Container Gateway: {output, error?, exitCode?}
+    Container Gateway->>Terminal UI: terminal-output {output}

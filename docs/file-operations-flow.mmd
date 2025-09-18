@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant File Explorer UI
+    participant WebSocket/HTTP API
+    participant Container Gateway/Controller
+    participant Container Manager Service
+    participant Docker Container
+
+    File Explorer UI->>WebSocket/HTTP API: writeFile request
+    WebSocket/HTTP API->>Container Gateway/Controller: fs-operation/HTTP endpoint
+    Container Gateway/Controller->>Container Manager Service: getContainer(containerId)
+    Container Manager Service->>Docker Container: docker exec [mkdir, echo, etc.]
+    Docker Container->>Container Manager Service: execution result
+    Container Manager Service->>Container Gateway/Controller: operation result
+    Container Gateway/Controller->>File Explorer UI: success/error response
